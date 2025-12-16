@@ -1,13 +1,11 @@
 package main
 
 //
-// start a worker process, which is implemented
-// in ../mr/worker.go. typically there will be
+// Start a worker process, which is implemented
+// in '../mr/worker.go.'. Typically there will be
 // multiple worker processes, talking to one coordinator.
 //
-// go run mrworker.go wc.so
-//
-// Please do not change this file.
+//	>_ go run mrworker.go wc.so
 //
 
 import "6.5840/mr"
@@ -27,9 +25,10 @@ func main() {
 	mr.Worker(mapf, reducef)
 }
 
-// load the application Map and Reduce functions
-// from a plugin file, e.g. ../mrapps/wc.so
-func loadPlugin(filename string) (func(string, string) []mr.KeyValue, func(string, []string) string) {
+// Load the application Map and Reduce functions
+// from a plugin file, e.g. '../mrapps/wc.so'.
+func loadPlugin(filename string) (func(string, string) []mr.KeyValue,
+																	func(string, []string) string) {
 	p, err := plugin.Open(filename)
 	if err != nil {
 		log.Fatalf("cannot load plugin %v", filename)
