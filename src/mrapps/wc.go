@@ -1,9 +1,9 @@
 package main
 
 //
-// a word-count application "plugin" for MapReduce.
+// A word-count application "plugin" for MapReduce.
 //
-// go build -buildmode=plugin wc.go
+// 	>_ go build -buildmode=plugin wc.go
 //
 
 import "6.5840/mr"
@@ -16,11 +16,18 @@ import "strconv"
 // file's complete contents. You should ignore the input file name,
 // and look only at the contents argument. The return value is a slice
 // of key/value pairs.
+//
+// Note: the returned key-value pairs slice may contain multiple values per key.
+// When a word occurs multiple times, it gets added to the list again as
+// a separate entry. If the word "apple" appears 3 times in your file, your
+// output list will contain three separate pairs that look identical:
+// 		{"apple", "1"}, {"apple", "1"}, and {"apple", "1"}.
 func Map(filename string, contents string) []mr.KeyValue {
-	// function to detect word separators.
+	// Function to detect word separators.
+	// In Go, 'rune' is a data type that represents a single Unicode character.
 	ff := func(r rune) bool { return !unicode.IsLetter(r) }
 
-	// split contents into an array of words.
+	// Split contents into an array of words.
 	words := strings.FieldsFunc(contents, ff)
 
 	kva := []mr.KeyValue{}
@@ -35,6 +42,8 @@ func Map(filename string, contents string) []mr.KeyValue {
 // map tasks, with a list of all the values created for that key by
 // any map task.
 func Reduce(key string, values []string) string {
-	// return the number of occurrences of this word.
+	// Return the number of occurrences of this word.
+	// Note: Since our Map only outputs single key-value pairs with value 1,
+	// it is enough to just count them.
 	return strconv.Itoa(len(values))
 }
