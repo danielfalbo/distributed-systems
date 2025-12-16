@@ -3,7 +3,11 @@ package main
 //
 // Simple sequential MapReduce.
 //
+// 	>_ cd src/main
+// 	>_ go build -buildmode=plugin ../mrapps/wc.go
+// 	>_ rm mr-out*
 // 	>_ go run mrsequential.go wc.so pg*.txt
+// 	>_ more mr-out-0
 //
 
 import "fmt"
