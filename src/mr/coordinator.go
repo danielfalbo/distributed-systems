@@ -16,15 +16,16 @@ type Coordinator struct {
 
 // RPC handler. Argument and reply types are defined in 'rpc.go'.
 func (c *Coordinator) MapTaskAssign(args *Empty,
-																		reply *MapTaskAssignment) error {
-	reply.Filename = c.files[0]
+									                  reply *MapTaskAssignment) error {
+	reply.Id = 200
+	reply.Filenames = []string{c.files[0]}
 	reply.NReduce = c.nReduce
 	return nil
 }
 
 // RPC handler. Argument and reply types are defined in 'rpc.go'.
 func (c *Coordinator) MapTaskCompleted(args *Empty,
-																				data *MapTaskCompleted) error {
+																			  data *MapTaskCompleted) error {
 	fmt.Printf("result arrived\n")
 	return nil
 }

@@ -23,26 +23,53 @@ func ihash(key string) int {
 
 // 'main/mrworker.go' calls this function.
 func Worker(mapf func(string, string) []KeyValue,
-	reducef func(string, []string) string) {
+						reducef func(string, []string) string) {
 
 	task := AskForTask()
-	fmt.Printf("task.Filename %v\n", task.Filename)
+	fmt.Printf("task.Id %v\n", task.Id)
+	fmt.Printf("len(task.Filenames) %v\n", len(task.Filenames))
+	fmt.Printf("task.NReduce %v\n", task.NReduce)
 
-	// Read input file, pass it to Map, emit Map output.
-	file, err := os.Open(task.Filename)
-	if err != nil {
-		log.Fatalf("cannot open %v", task.Filename)
-	}
-	content, err := ioutil.ReadAll(file)
-	if err != nil {
-		log.Fatalf("cannot read %v", task.Filename)
-	}
-	file.Close()
-	kva := mapf(task.Filename, string(content))
+	// Read each input file,
+	// pass it to Map,
+	// write Map output to new file.
+	onames := make([]string, task.NReduce)
+	for _, filename := range task.Filenames {
+		// Read input file
+		file, err := os.Open(filename)
+		if err != nil {
+			log.Fatalf("cannot open %v", filename)
+		}
+		content, err := ioutil.ReadAll(file)
+		if err != nil {
+			log.Fatalf("cannot read %v", filename)
+		}
+		file.Close()
 
+		// Process file content
+		kva := mapf(filename, string(content))
+
+		// Write result to file
+
+		// Naming convention for intermediate files is mr-X-Y,
+		// where X is the Map task number,
+		// and Y is the reduce task number
+		X := task.Id
+		Y := ihash(filename) % task.NReduce
+		oname := fmt.Sprintf("mr-%d-%d", X, Y)
+		onames[Y] = oname
+
+		ofile, _ := os.Create(oname)
+		for i:=0; i < len(kva); i++ {
+			fmt.Fprintf(ofile, "%v %v\n", kva[i].Key, kva[i].Value)
+		}
+		ofile.Close()
+	}
+
+	// Emit result
 	result := MapTaskCompleted{
-		Filename: task.Filename,
-		Kva: kva,
+		Id: task.Id,
+		Filenames: onames,
 	}
 	SendMapTaskResult(&result)
 }
@@ -58,7 +85,9 @@ func AskForTask() MapTaskAssignment {
 	reply := MapTaskAssignment{}
 	ok := call("Coordinator.MapTaskAssign", &args, &reply)
 	if ok {
-		fmt.Printf("reply.Filename %v\n", reply.Filename)
+		fmt.Printf("reply.Id %v\n", reply.Id)
+		fmt.Printf("reply.NReduce %v\n", reply.NReduce)
+		fmt.Printf("len(reply.Filenames) %v\n", len(reply.Filenames))
 		fmt.Printf("reply.NReduce %v\n", reply.NReduce)
 	} else {
 		fmt.Printf("call failed!\n")

@@ -52,11 +52,9 @@ func main() {
 
 	mapf, reducef := loadPlugin(os.Args[1])
 
-	//
 	// Read each input file,
 	// pass it to Map,
 	// accumulate the intermediate Map output.
-	//
 	intermediate := []mr.KeyValue{}
 	for _, filename := range os.Args[2:] {
 		file, err := os.Open(filename)
