@@ -1,32 +1,71 @@
 package mr
 
-import "fmt"
+import "os"
 import "log"
 import "net"
-import "os"
+import "sync"
+import "time"
 import "net/rpc"
 import "net/http"
 
-type Coordinator struct {
-	files []string
-	nReduce int
+type Task struct {
+	ID 				int
+	FileName 	string
+	Status 		int  			// 0: idle, 1: in progress, 2: completed
+	StartTime time.Time
+}
 
-	done bool
+type Coordinator struct {
+	mapTasks 		[]Task
+	reduceTasks []Task
+	nReduce 		int
+	phase 			int 				// 0: map phase, 1: reduce phase, 2: done
+	mu 					sync.Mutex
 }
 
 // RPC handler. Argument and reply types are defined in 'rpc.go'.
 func (c *Coordinator) MapTaskAssign(args *Empty,
 									                  reply *MapTaskAssignment) error {
-	reply.Id = 200
-	reply.Filenames = []string{c.files[0]}
-	reply.NReduce = c.nReduce
+
+	// Grab mutex, find idle job, set reply to given idle task
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for i, task := range c.mapTasks {
+		if task.Status == 0 { // 0: Idle
+			// Mark task as assigned and started now in the coordinator state
+			c.mapTasks[i].Status = 1
+			c.mapTasks[i].StartTime = time.Now()
+
+			// Set worker state to given task
+			reply.Id = task.ID
+			reply.Filename = task.FileName
+			reply.NReduce = c.nReduce
+			return nil
+		}
+	}
+
+	// No idle map tasks found. We should now check if we're waiting for some
+	// to finish or if we should more to the Reduce phase.
+	reply.Id = -1
+
 	return nil
 }
 
 // RPC handler. Argument and reply types are defined in 'rpc.go'.
-func (c *Coordinator) MapTaskCompleted(args *Empty,
-																			  data *MapTaskCompleted) error {
-	fmt.Printf("result arrived\n")
+func (c *Coordinator) MapTaskCompleted(args *MapTaskCompleted,
+																			data *Empty) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.mapTasks[args.Id].Status == 2 {
+		// Task already marked as done, so return ealy to avoid double counting.
+		// This is to safeguard from workers assumed dead who just finished late.
+		return nil
+	}
+
+	c.mapTasks[args.Id].Status = 2 // completed
+
 	return nil
 }
 
@@ -44,25 +83,37 @@ func (c *Coordinator) server() {
 	go http.Serve(l, nil)
 }
 
-// 'main/mrcoordinator.go' calls Done() periodically to find out
-// if the entire job has finished.
-func (c *Coordinator) Done() bool {
-	return c.done;
-}
-
 // Create a Coordinator.
 // 'main/mrcoordinator.go' calls this function.
 // 'nReduce' is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	c := Coordinator{
-		files: files,
-		nReduce: nReduce,
-		done: false,
-	}
-
-	c.files = files
+	c := Coordinator{}
 	c.nReduce = nReduce
+	c.phase = 0 // map phase
+
+	for i, file := range files {
+		task := Task{
+				ID:  			i,
+				FileName: file,
+				Status: 	0, // idle
+		}
+		c.mapTasks = append(c.mapTasks, task)
+	}
 
 	c.server()
 	return &c
 }
+
+// 'main/mrcoordinator.go' calls Done() periodically to find out
+// if the entire job has finished.
+func (c *Coordinator) Done() bool {
+	return c.phase == 2;
+}
+// Let's create similar helpers for Map and Resuce phases, why not.
+func (c *Coordinator) Mapping() bool {
+	return c.phase == 0;
+}
+func (c *Coordinator) Reducing() bool {
+	return c.phase == 1;
+}
+

@@ -3,9 +3,11 @@ package mr
 import "os"
 import "fmt"
 import "log"
+import "time"
 import "net/rpc"
 import "hash/fnv"
 import "io/ioutil"
+import "encoding/json"
 
 // Map functions return a slice of KeyValue.
 type KeyValue struct {
@@ -25,53 +27,74 @@ func ihash(key string) int {
 func Worker(mapf func(string, string) []KeyValue,
 						reducef func(string, []string) string) {
 
-	task := AskForTask()
-	fmt.Printf("task.Id %v\n", task.Id)
-	fmt.Printf("len(task.Filenames) %v\n", len(task.Filenames))
-	fmt.Printf("task.NReduce %v\n", task.NReduce)
+	for {
+		task := AskForTask()
 
-	// Read each input file,
-	// pass it to Map,
-	// write Map output to new file.
-	onames := make([]string, task.NReduce)
-	for _, filename := range task.Filenames {
+		if task.Id == -1 {
+			// Coordinator gave no work (maybe waiting for others to finish)
+			time.Sleep(time.Second)
+			continue
+		}
+
+		fmt.Printf("task.Id %v\n", task.Id)
+		fmt.Printf("task.Filename %v\n", task.Filename)
+		fmt.Printf("task.NReduce %v\n", task.NReduce)
+
+		// Naming convention for intermediate Map output files is mr-X-Y,
+		// where X is the Map task number, and Y is the reduce task number.
+
+		// We use temp files and rename then once the job is over,
+		// so coordinator can check for finished work by looking for
+		// files with expected filename format.
+
+		// Create NReduce temp files and encoders attached to each file.
+		encoders := make([]*json.Encoder, task.NReduce)
+		files		 := make([]*os.File, 			task.NReduce)
+		for i := 0; i < task.NReduce; i++ {
+			file, err := os.CreateTemp("", "mr-tmp-*")
+			if err != nil {
+				log.Fatal("could not create temp file")
+			}
+			files[i] = file
+			encoders[i] = json.NewEncoder(file)
+		}
+
 		// Read input file
-		file, err := os.Open(filename)
+		file, err := os.Open(task.Filename)
 		if err != nil {
-			log.Fatalf("cannot open %v", filename)
+			log.Fatalf("cannot open %v", task.Filename)
 		}
 		content, err := ioutil.ReadAll(file)
 		if err != nil {
-			log.Fatalf("cannot read %v", filename)
+			log.Fatalf("cannot read %v", task.Filename)
 		}
 		file.Close()
 
-		// Process file content
-		kva := mapf(filename, string(content))
+		// Process file content with given Map implementation from app plugin
+		kva := mapf(task.Filename, string(content))
 
-		// Write result to file
-
-		// Naming convention for intermediate files is mr-X-Y,
-		// where X is the Map task number,
-		// and Y is the reduce task number
-		X := task.Id
-		Y := ihash(filename) % task.NReduce
-		oname := fmt.Sprintf("mr-%d-%d", X, Y)
-		onames[Y] = oname
-
-		ofile, _ := os.Create(oname)
-		for i:=0; i < len(kva); i++ {
-			fmt.Fprintf(ofile, "%v %v\n", kva[i].Key, kva[i].Value)
+		// Write result to files
+		for _, kv := range kva {
+			// Hash key to figure out where among the Nreduce outs to put given kv
+			bucket := ihash(kv.Key) % task.NReduce
+			encoders[bucket].Encode(&kv)
 		}
-		ofile.Close()
-	}
 
-	// Emit result
-	result := MapTaskCompleted{
-		Id: task.Id,
-		Filenames: onames,
+		// Close files and rename them with naming convention
+		for i, file := range files {
+			tmpName := file.Name()
+			file.Close()
+
+			finalName := fmt.Sprintf("mr-%d-%d", task.Id, i)
+			os.Rename(tmpName, finalName)
+		}
+
+		// Emit result
+		result := MapTaskCompleted{
+			Id: task.Id,
+		}
+		SendMapTaskResult(&result)
 	}
-	SendMapTaskResult(&result)
 }
 
 // RPC to the coordinator asking for a task.
@@ -87,7 +110,6 @@ func AskForTask() MapTaskAssignment {
 	if ok {
 		fmt.Printf("reply.Id %v\n", reply.Id)
 		fmt.Printf("reply.NReduce %v\n", reply.NReduce)
-		fmt.Printf("len(reply.Filenames) %v\n", len(reply.Filenames))
 		fmt.Printf("reply.NReduce %v\n", reply.NReduce)
 	} else {
 		fmt.Printf("call failed!\n")

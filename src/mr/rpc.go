@@ -11,14 +11,13 @@ type Empty struct{}
 // Response to worker asking coordinator for a task.
 type MapTaskAssignment struct {
 	Id int
-	Filenames []string
+	Filename string
 	NReduce int
 }
 
 // Worker notifying coordinator of completed task.
 type MapTaskCompleted struct {
 	Id int
-	Filenames []string
 }
 
 // Cook up a unique-ish UNIX-domain socket name
