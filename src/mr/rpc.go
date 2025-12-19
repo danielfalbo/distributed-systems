@@ -12,7 +12,7 @@ type Empty struct{}
 type TaskReply struct {
 	Id 						int
 
-	// 0: Map, 1: Reduce
+	// 0: Map, 1: Reduce, 2: Done (invite to exit)
 	Type 					int
 
 	// Map gets 1 file; Reduce gets 'NReduce' files.
@@ -38,8 +38,9 @@ type TaskReply struct {
 }
 
 // Worker notifying coordinator of completed task.
-type MapTaskCompleted struct {
-	Id int
+type TaskResult struct {
+	Id 		int
+	Type 	int // 0: Map, 1: Reduce
 }
 
 // Cook up a unique-ish UNIX-domain socket name

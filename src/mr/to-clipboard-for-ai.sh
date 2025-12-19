@@ -32,6 +32,12 @@ trap "rm -f '$TEMP_FILE'" EXIT
         fi
     done
 
+    # sequential example
+    echo "../main/mrsequential.go"
+    echo ""
+    cat "../main/mrsequential.go"
+    echo -e "\n"
+
     # Final questino
     echo -e "\n--- End of Files ---\n"
     echo "Am I on the right track? What could the next unit of work for me to implement be?"
