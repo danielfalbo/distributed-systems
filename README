@@ -3,3 +3,11 @@
 ## Resources
 
 1. [MIT 6.824](https://pdos.csail.mit.edu/6.824/)
+
+  Progress:
+
+  - [x] Lab 1: MapReduce
+  - [ ] Lab 2: Key/Value Server
+  - [ ] Lab 3: Raft
+  - [ ] Lab 4: Fault-tolerant Key/Value Service
+  - [ ] Lab 5: Sharded Key/Value Service
