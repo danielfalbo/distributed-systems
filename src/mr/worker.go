@@ -37,8 +37,11 @@ func Worker(mapf func(string, string) []KeyValue,
 		}
 
 		fmt.Printf("task.Id %v\n", task.Id)
-		fmt.Printf("task.Filename %v\n", task.Filename)
+		fmt.Printf("task.Type %v\n", task.Type)
+		fmt.Printf("len(task.FileNames) %v\n", len(task.FileNames))
+		fmt.Printf("task.FileNames[0] %v\n", task.FileNames[0])
 		fmt.Printf("task.NReduce %v\n", task.NReduce)
+		fmt.Printf("task.NMap %v\n", task.NMap)
 
 		// Naming convention for intermediate Map output files is mr-X-Y,
 		// where X is the Map task number, and Y is the reduce task number.
@@ -60,18 +63,19 @@ func Worker(mapf func(string, string) []KeyValue,
 		}
 
 		// Read input file
-		file, err := os.Open(task.Filename)
+		filename := task.FileNames[0]
+		file, err := os.Open(filename)
 		if err != nil {
-			log.Fatalf("cannot open %v", task.Filename)
+			log.Fatalf("cannot open %v", filename)
 		}
 		content, err := ioutil.ReadAll(file)
 		if err != nil {
-			log.Fatalf("cannot read %v", task.Filename)
+			log.Fatalf("cannot read %v", filename)
 		}
 		file.Close()
 
 		// Process file content with given Map implementation from app plugin
-		kva := mapf(task.Filename, string(content))
+		kva := mapf(filename, string(content))
 
 		// Write result to files
 		for _, kv := range kva {
@@ -99,17 +103,19 @@ func Worker(mapf func(string, string) []KeyValue,
 
 // RPC to the coordinator asking for a task.
 // Args and reply types are defined in 'rpc.go'.
-func AskForTask() MapTaskAssignment {
+func AskForTask() TaskReply {
 	// Send the RPC request, wait for the reply.
 	// The "Coordinator.Procedure" tells the
 	// receiving server that we'd like to call
 	// the Procedure() method of struct Coordinator.
 	args  := Empty{}
-	reply := MapTaskAssignment{}
-	ok := call("Coordinator.MapTaskAssign", &args, &reply)
+	reply := TaskReply{}
+	ok := call("Coordinator.GetTask", &args, &reply)
 	if ok {
 		fmt.Printf("reply.Id %v\n", reply.Id)
-		fmt.Printf("reply.NReduce %v\n", reply.NReduce)
+		fmt.Printf("reply.Type %v\n", reply.Type)
+		fmt.Printf("len(reply.FileNames) %v\n", len(reply.FileNames))
+		fmt.Printf("reply.NMap %v\n", reply.NMap)
 		fmt.Printf("reply.NReduce %v\n", reply.NReduce)
 	} else {
 		fmt.Printf("call failed!\n")

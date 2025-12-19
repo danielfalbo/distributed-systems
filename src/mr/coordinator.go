@@ -24,8 +24,7 @@ type Coordinator struct {
 }
 
 // RPC handler. Argument and reply types are defined in 'rpc.go'.
-func (c *Coordinator) MapTaskAssign(args *Empty,
-									                  reply *MapTaskAssignment) error {
+func (c *Coordinator) GetTask(args *Empty, reply *TaskReply) error {
 
 	// Grab mutex, find idle job, set reply to given idle task
 	c.mu.Lock()
@@ -39,8 +38,9 @@ func (c *Coordinator) MapTaskAssign(args *Empty,
 
 			// Set worker state to given task
 			reply.Id = task.ID
-			reply.Filename = task.FileName
+			reply.FileNames = []string{task.FileName}
 			reply.NReduce = c.nReduce
+			reply.Type = 0 // map
 			return nil
 		}
 	}
