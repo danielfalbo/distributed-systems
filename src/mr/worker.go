@@ -53,7 +53,7 @@ func Worker(mapf func(string, string) []KeyValue,
 		task := AskForTask()
 
 		if task.Type == 2 {
-			fmt.Printf("Job is done!")
+			// fmt.Printf("Job is done!")
 			os.Exit(0)
 		}
 
@@ -63,14 +63,14 @@ func Worker(mapf func(string, string) []KeyValue,
 			continue
 		}
 
-		fmt.Printf("task.Id %v\n", task.Id)
-		fmt.Printf("task.Type %v\n", task.Type)
-		fmt.Printf("len(task.FileNames) %v\n", len(task.FileNames))
-		if len(task.FileNames) > 0 {
-			fmt.Printf("task.FileNames[0] %v\n", task.FileNames[0])
-		}
-		fmt.Printf("task.NReduce %v\n", task.NReduce)
-		fmt.Printf("task.NMap %v\n", task.NMap)
+		// fmt.Printf("task.Id %v\n", task.Id)
+		// fmt.Printf("task.Type %v\n", task.Type)
+		// fmt.Printf("len(task.FileNames) %v\n", len(task.FileNames))
+		// if len(task.FileNames) > 0 {
+		// 	fmt.Printf("task.FileNames[0] %v\n", task.FileNames[0])
+		// }
+		// fmt.Printf("task.NReduce %v\n", task.NReduce)
+		// fmt.Printf("task.NMap %v\n", task.NMap)
 
 		if task.Type == 0 { // map
 			doMap(task, mapf)
@@ -210,13 +210,13 @@ func AskForTask() TaskReply {
 	reply := TaskReply{}
 	ok := call("Coordinator.GetTask", &args, &reply)
 	if ok {
-		fmt.Printf("reply.Id %v\n", reply.Id)
-		fmt.Printf("reply.Type %v\n", reply.Type)
-		fmt.Printf("len(reply.FileNames) %v\n", len(reply.FileNames))
-		fmt.Printf("reply.NMap %v\n", reply.NMap)
-		fmt.Printf("reply.NReduce %v\n", reply.NReduce)
+		// fmt.Printf("reply.Id %v\n", reply.Id)
+		// fmt.Printf("reply.Type %v\n", reply.Type)
+		// fmt.Printf("len(reply.FileNames) %v\n", len(reply.FileNames))
+		// fmt.Printf("reply.NMap %v\n", reply.NMap)
+		// fmt.Printf("reply.NReduce %v\n", reply.NReduce)
 	} else {
-		fmt.Printf("call failed!\n")
+		// fmt.Printf("call failed!\n")
 
 		// Assuming coordinator is dead/done
 		os.Exit(0)
@@ -231,9 +231,9 @@ func SendTaskResult(result *TaskResult) {
 	reply := Empty{}
 	ok := call("Coordinator.TaskDone", &args, &reply)
 	if ok {
-		fmt.Printf("ok\n")
+		// fmt.Printf("ok\n")
 	} else {
-		fmt.Printf("call failed!\n")
+		// fmt.Printf("call failed!\n")
 	}
 }
 
