@@ -107,13 +107,7 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 // 'main/mrcoordinator.go' calls Done() periodically to find out
 // if the entire job has finished.
 func (c *Coordinator) Done() bool {
+	c.mu.Lock()
+ 	defer c.mu.Unlock()
 	return c.phase == 2;
 }
-// Let's create similar helpers for Map and Resuce phases, why not.
-func (c *Coordinator) Mapping() bool {
-	return c.phase == 0;
-}
-func (c *Coordinator) Reducing() bool {
-	return c.phase == 1;
-}
-
