@@ -19,6 +19,7 @@ type Coordinator struct {
 	mapTasks 		[]Task
 	reduceTasks []Task
 	nReduce 		int
+	nMap      	int
 	phase 			int 				// 0: map phase, 1: reduce phase, 2: done
 	mu 					sync.Mutex
 }
@@ -35,7 +36,9 @@ func (c *Coordinator) GetTask(args *Empty, reply *TaskReply) error {
 
 	if c.phase == 0 { // map
 		for i, task := range c.mapTasks {
-			if task.Status == 0 { // 0: Idle
+			// [0: idle] or [1: in progress] but worker is assumed dead (10s timeout)
+			if task.Status == 0 ||
+				(task.Status == 1 && time.Since(task.StartTime) > time.Second * 10) {
 				// Mark task as assigned and started now in the coordinator state
 				c.mapTasks[i].Status = 1
 				c.mapTasks[i].StartTime = time.Now()
@@ -59,7 +62,7 @@ func (c *Coordinator) GetTask(args *Empty, reply *TaskReply) error {
 				// A Reduce worker doesn't need reply.FileNames since it can
 				// infer them given its bucket index and NMap.
 				reply.Id = i // reduce bucket
-				reply.NMap = len(c.mapTasks)
+				reply.NMap = c.nMap
 				reply.Type = 1 // reduce
 
 				return nil
@@ -100,15 +103,6 @@ func (c *Coordinator) TaskDone(args *TaskResult, data *Empty) error {
 		}
 		if allMapsDone && c.phase == 0 {
 			c.phase = 1 // Switch to Reduce phase.
-
-			// init nReduce reduce tasks
-			for i := 0; i < c.nReduce; i++ {
-				task := Task{
-						Id:  			i,
-						Status: 	0, // idle
-				}
-				c.reduceTasks = append(c.reduceTasks, task)
-			}
 		}
 	} else { // reduce
 		if c.reduceTasks[args.Id].Status == 2 {
@@ -157,9 +151,10 @@ func (c *Coordinator) server() {
 // 'nReduce' is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
 	c := Coordinator{}
-	c.nReduce = nReduce
 	c.phase = 0 // map phase
 
+	// init map tasks: 1 per input file
+	c.nMap = len(files)
 	for i, file := range files {
 		task := Task{
 				Id:  			i,
@@ -167,6 +162,16 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 				Status: 	0, // idle
 		}
 		c.mapTasks = append(c.mapTasks, task)
+	}
+
+	// init nReduce reduce tasks
+	c.nReduce = nReduce
+	for i := 0; i < c.nReduce; i++ {
+		task := Task{
+				Id:  			i,
+				Status: 	0, // idle
+		}
+		c.reduceTasks = append(c.reduceTasks, task)
 	}
 
 	c.server()
