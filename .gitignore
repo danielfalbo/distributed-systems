@@ -2,3 +2,4 @@ pkg/
 *-handin.tar.gz
 mr-out-*
 *.swp
+*.un~
