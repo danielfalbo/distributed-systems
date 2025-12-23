@@ -18,9 +18,10 @@ trap "rm -f '$TEMP_FILE'" EXIT
     echo "And the following is my progress."
     echo ""
 
-    echo "client.go:" ; echo ""; cat "client.go" ; echo -e "\n"
-    echo "server.go:" ; echo ""; cat "server.go" ; echo -e "\n"
-    echo "rpc/rpc.go:"; echo ""; cat "rpc/rpc.go"; echo -e "\n"
+    echo "client.go:"    ; echo "" ; cat "client.go"    ; echo -e "\n"
+    echo "server.go:"    ; echo "" ; cat "server.go"    ; echo -e "\n"
+    echo "rpc/rpc.go:"   ; echo "" ; cat "rpc/rpc.go"   ; echo -e "\n"
+    echo "lock/lock.go:" ; echo "" ; cat "lock/lock.go" ; echo -e "\n"
 
     echo -e "\n--- End of Files ---\n"
     echo "Am I on the right track? What could the next unit of work for me to implement be?"
