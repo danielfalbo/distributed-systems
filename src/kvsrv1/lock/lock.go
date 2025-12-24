@@ -66,7 +66,7 @@ func (lk *Lock) Acquire() {
 			value, version, err = lk.ck.Get(lk.l)
 
 			// No need to keep CPU and KV server busy checking all the time.
-			time.Sleep(1 * time.Second)
+			time.Sleep(10 * time.Millisecond)
 		}
 
 		// At this point it must be that err is OK and value is Free.
