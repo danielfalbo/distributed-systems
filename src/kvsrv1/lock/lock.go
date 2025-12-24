@@ -64,6 +64,8 @@ func (lk *Lock) Acquire() {
 		value, version, err := Busy, lk.v, rpc.Err(rpc.ErrMaybe)
 		for err != rpc.OK || value != Free {
 			value, version, err = lk.ck.Get(lk.l)
+
+			// No need to keep CPU and KV server busy checking all the time.
 			time.Sleep(1 * time.Second)
 		}
 
