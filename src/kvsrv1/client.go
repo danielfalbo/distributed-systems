@@ -1,6 +1,7 @@
 package kvsrv
 
 import (
+	"time"
 	"6.5840/kvsrv1/rpc"
 	"6.5840/kvtest1"
 	"6.5840/tester1"
@@ -22,9 +23,6 @@ func MakeClerk(clnt *tester.Clnt, server string) kvtest.IKVClerk {
 // ErrNoKey if the key does not exist. It keeps trying forever in the
 // face of all other errors.
 //
-// You can send an RPC with code like this:
-// ok := ck.clnt.Call(ck.server, "KVServer.Get", &args, &reply)
-//
 // The types of args and reply (including whether they are pointers)
 // must match the declared types of the RPC handler function's
 // arguments. Additionally, reply must be passed as a pointer.
@@ -32,7 +30,16 @@ func (ck *Clerk) Get(key string) (string, rpc.Tversion, rpc.Err) {
 	args := rpc.GetArgs{Key: key}
 	reply := rpc.GetReply{}
 
-	ck.clnt.Call(ck.server, "KVServer.Get", &args, &reply)
+	// Retry every 10 milliseconds until succeeds
+	ok := false
+	for !ok {
+		ok = ck.clnt.Call(ck.server, "KVServer.Get", &args, &reply)
+
+		// Sleep only if the call failed
+		if !ok {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
 
 	return reply.Value, reply.Version, reply.Err
 }
@@ -48,9 +55,6 @@ func (ck *Clerk) Get(key string) (string, rpc.Tversion, rpc.Err) {
 // but the response was lost, and the Clerk doesn't know if
 // the Put was performed or not.
 //
-// You can send an RPC with code like this:
-// ok := ck.clnt.Call(ck.server, "KVServer.Put", &args, &reply)
-//
 // The types of args and reply (including whether they are pointers)
 // must match the declared types of the RPC handler function's
 // arguments. Additionally, reply must be passed as a pointer.
@@ -58,7 +62,25 @@ func (ck *Clerk) Put(key, value string, version rpc.Tversion) rpc.Err {
 	args := rpc.PutArgs{Key: key, Value: value, Version: version}
 	reply := rpc.PutReply{}
 
-	ck.clnt.Call(ck.server, "KVServer.Put", &args, &reply)
+	// Retry every 10 milliseconds until succeeds
+	ok := false
+	isRetry := false
+	for !ok {
+		ok = ck.clnt.Call(ck.server, "KVServer.Put", &args, &reply)
+
+		// Sleep only if the call failed
+		if !ok {
+			time.Sleep(10 * time.Millisecond)
+
+			// Note that if the very first RPC succeeds, we will never get here,
+			// and isRetry will remain false even after exiting this loop.
+			isRetry = true
+		}
+	}
+
+	if reply.Err == rpc.ErrVersion && isRetry {
+		return rpc.ErrMaybe
+	}
 
 	return reply.Err
 }
