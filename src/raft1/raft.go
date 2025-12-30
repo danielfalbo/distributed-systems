@@ -43,9 +43,6 @@ type Raft struct {
 	// Election deadline: timestamp when we should start an election.
 	// Routinely refreshed by heartbeats.
 	electionDeadline time.Time
-
-	// Counter for votes received when running a self election as candidate.
-	votesReceived int
 }
 
 // ============================== Init ==================================
@@ -70,7 +67,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.term = 0;
 	rf.role = 0; // follower
 	rf.vote = -1;
-	rf.votesReceived = 0
 
 	// schedule next election nondeterministically
 	rf.resetElectionDeadline()
@@ -418,12 +414,13 @@ func (rf *Raft) AttemptSelfElection() {
 	// vote for self
 	rf.role = 1 // candidate
 	rf.vote = rf.me
-	rf.votesReceived = 1
 
 	me := rf.me
 	term := rf.term;
 
 	rf.mu.Unlock()
+
+	votesReceived := 1 // start counter from the 1 self-vote
 
 	// Send RequestVote RPCs to all other servers
 	for i, _ := range rf.peers {
@@ -454,10 +451,10 @@ func (rf *Raft) AttemptSelfElection() {
 				}
 
 				if reply.VoteGranted {
-					rf.votesReceived++
+					votesReceived++
 
 					// Check for Majority
-					if rf.votesReceived > len(rf.peers)/2 {
+					if votesReceived > len(rf.peers)/2 {
 						// Become Leader
 						rf.role = 2 // leader
 
