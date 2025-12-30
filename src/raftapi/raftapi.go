@@ -6,8 +6,7 @@ type Raft interface {
 	// for that entry, the term, and whether the peer is the leader.
 	Start(command interface{}) (int, int, bool)
 
-	// Ask a Raft for its current term, and whether it thinks it is
-	// leader
+	// Ask a Raft for its current term, and whether it thinks it is leader
 	GetState() (int, bool)
 
 	// For Snaphots (3D)
