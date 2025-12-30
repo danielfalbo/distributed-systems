@@ -32,7 +32,7 @@ type Raft struct {
 	dead int32 // Set by Kill().
 
 	// Current role.
-	role	int // 0 follower, 1 candidate, 2 leader.
+	role	int // 0: Follower, 1: Candidate, 2: Leader
 
 	// Latest term server has seen.
 	term int
@@ -74,8 +74,9 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
-	// start ticker goroutine to start elections
-	go rf.ticker()
+	// start tickers goroutines
+	go rf.electionTicker()
+	go rf.heartbeatTicker()
 
 	return rf
 }
@@ -190,52 +191,6 @@ func (rf *Raft) Kill() {
 func (rf *Raft) killed() bool {
 	z := atomic.LoadInt32(&rf.dead)
 	return z == 1
-}
-
-// ==================== Background Ticker ===============================
-
-/* Refreshes the target election time randomly between 300 and 600 ms
- * into the future. It is up to the caller to ensure to hold the
- * rf.mu lock. before resetting the timer. */
-func (rf *Raft) resetElectionDeadline() {
-	ms := 300 + (rand.Int63() % 300)
-	rf.electionDeadline = time.Now().Add(time.Duration(ms) * time.Millisecond)
-}
-
-func (rf *Raft) ticker() {
-	for rf.killed() == false {
-		// Check if a leader election should be started.
-		// That is: if we are a follower and last heard leader heartbeat
-		// was more time ago than the defined timeout treshold.
-		rf.mu.Lock()
-
-		if rf.role == 2 { // leader
-			// 'sendHeartbeats' will wait for the lock, so we release early.
-			rf.mu.Unlock()
-
-			rf.sendHeartbeats()
-
-			// Wait 100ms before sending next heartbeat,
-			// sending approx 10 heartbeats per second.
-			time.Sleep(100 * time.Millisecond)
-		} else { // follower or candidate
-			// Check if we need to start an election
-			isElectionTime := time.Now().After(rf.electionDeadline)
-
-			// 'AttemptSelfElection' will wait for the lock, so we release early.
-			rf.mu.Unlock()
-
-			if isElectionTime {
-				// run election
-				rf.AttemptSelfElection()
-			}
-
-			// Pause for a random amount of time between 150 and 350ms
-			// before checking again.
-			ms := 150 + (rand.Int63() % 200)
-			time.Sleep(time.Duration(ms) * time.Millisecond)
-		}
-	}
 }
 
 // ======================= RequestVote RPC ==============================
@@ -398,7 +353,15 @@ func (rf *Raft) sendHeartbeats() {
 	}
 }
 
-// ======================= Election =====================================
+// ========================== Election ==================================
+
+/* Refreshes the target election time randomly between 300 and 600 ms
+ * into the future. It is up to the caller to ensure to hold the
+ * rf.mu lock. before resetting the timer. */
+func (rf *Raft) resetElectionDeadline() {
+	ms := 300 + (rand.Int63() % 300)
+	rf.electionDeadline = time.Now().Add(time.Duration(ms) * time.Millisecond)
+}
 
 // Transition to candidate and attempt election.
 // Caller must release lock before calling this.
@@ -466,5 +429,44 @@ func (rf *Raft) AttemptSelfElection() {
 				}
 			}
 		}(i)
+	}
+}
+
+// ============================ Tickers =================================
+
+// Ticker to routinely send heartbeats when we are leader.
+func (rf *Raft) heartbeatTicker() {
+	for rf.killed() == false {
+		rf.mu.Lock()
+		isLeader := rf.role == 2
+		rf.mu.Unlock()
+
+		if isLeader {
+			rf.sendHeartbeats()
+		}
+
+		// Wait 100ms before sending next heartbeat,
+		// sending around 10 heartbeats per second.
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+// Ticker to routinely check for leader heartbeats when we are non-leaders,
+// and propose election of ourselves as leader when we stop getting heartbeats
+// as well as restart election when stuck in minorities vote partitions.
+func (rf *Raft) electionTicker() {
+	for rf.killed() == false {
+		rf.mu.Lock()
+		isFollowerOrCandidate := rf.role == 0 || rf.role == 1
+		isElectionTime := time.Now().After(rf.electionDeadline)
+		rf.mu.Unlock()
+
+		if isFollowerOrCandidate && isElectionTime {
+				rf.AttemptSelfElection()
+		}
+
+		// Wait random amount between 150 and 350ms before checkign again.
+		ms := 150 + (rand.Int63() % 200)
+		time.Sleep(time.Duration(ms) * time.Millisecond)
 	}
 }
