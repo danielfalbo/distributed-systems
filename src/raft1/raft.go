@@ -346,6 +346,7 @@ func (rf *Raft) sendHeartbeats() {
 					// Higher term: step down as follower with updated term.
 					rf.term = reply.Term
 					rf.role = 0 // follower
+					rf.vote = -1 // follower
 				}
 				rf.mu.Unlock()
 			}
@@ -367,6 +368,13 @@ func (rf *Raft) resetElectionDeadline() {
 // Caller must release lock before calling this.
 func (rf *Raft) AttemptSelfElection() {
 	rf.mu.Lock()
+
+	// If we are already the leader or we heard an heartbeat
+	// that refreshed the election timer already, return early.
+	if rf.role == 2 || !time.Now().After(rf.electionDeadline) {
+		rf.mu.Unlock()
+		return
+	}
 
 	// reset election target
 	rf.resetElectionDeadline()
