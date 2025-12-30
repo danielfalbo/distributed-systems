@@ -383,7 +383,9 @@ func (rf *Raft) AttemptSelfElection() {
 
 	rf.mu.Unlock()
 
-	votesReceived := 1 // start counter from the 1 self-vote
+	// Start counter from the 1 self-vote.
+	// Ensure counter is guarded by the 'rf.mu' lock.
+	votesReceived := 1
 
 	// Send RequestVote RPCs to all other servers
 	for i, _ := range rf.peers {
