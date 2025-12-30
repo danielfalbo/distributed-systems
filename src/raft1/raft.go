@@ -346,7 +346,7 @@ func (rf *Raft) sendHeartbeats() {
 					// Higher term: step down as follower with updated term.
 					rf.term = reply.Term
 					rf.role = 0 // follower
-					rf.vote = -1 // follower
+					rf.vote = -1 // reset vote
 				}
 				rf.mu.Unlock()
 			}
