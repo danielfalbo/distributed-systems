@@ -379,7 +379,8 @@ func (rf *Raft) AttemptSelfElection() {
 	rf.vote = rf.me
 
 	me := rf.me
-	term := rf.term;
+	term := rf.term
+	peers := rf.peers
 
 	rf.mu.Unlock()
 
@@ -388,7 +389,7 @@ func (rf *Raft) AttemptSelfElection() {
 	votesReceived := 1
 
 	// Send RequestVote RPCs to all other servers
-	for i, _ := range rf.peers {
+	for i, _ := range peers {
 		if i == rf.me { continue }
 
 		go func(server int) {
@@ -418,15 +419,15 @@ func (rf *Raft) AttemptSelfElection() {
 				if reply.VoteGranted {
 					votesReceived++
 
-					// Check for Majority
-					if votesReceived > len(rf.peers)/2 {
+					// Check for Majority.
+					// No need to upgrade to leader if we're already leader.
+					if votesReceived > len(rf.peers)/2 && rf.role != 2 {
 						// Become Leader
 						rf.role = 2 // leader
 
 						// Send first heartbeats immediately.
 						// Following heartbeats will be sent automatically by the ticker.
 						go rf.sendHeartbeats()
-						return
 					}
 				}
 			}
@@ -438,7 +439,7 @@ func (rf *Raft) AttemptSelfElection() {
 
 // Ticker to routinely send heartbeats when we are leader.
 func (rf *Raft) heartbeatTicker() {
-	for rf.killed() == false {
+	for !rf.killed() {
 		rf.mu.Lock()
 		isLeader := rf.role == 2
 		rf.mu.Unlock()
@@ -457,7 +458,7 @@ func (rf *Raft) heartbeatTicker() {
 // and propose election of ourselves as leader when we stop getting heartbeats
 // as well as restart election when stuck in minorities vote partitions.
 func (rf *Raft) electionTicker() {
-	for rf.killed() == false {
+	for !rf.killed() {
 		rf.mu.Lock()
 		isFollowerOrCandidate := rf.role == 0 || rf.role == 1
 		isElectionTime := time.Now().After(rf.electionDeadline)
