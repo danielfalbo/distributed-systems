@@ -7,22 +7,17 @@ trap "rm -f '$TEMP_FILE'" EXIT
 
 {
     echo "I am currently doing this homework for MIT Distributed Systems course."
-    echo ""
+
     echo "These are the requirements:"
     echo "{$LAB_URL}"
-    echo ""
-
     curl -s "$LAB_URL"
-
     echo -e "\n--- End of Requirements ---\n"
+
     echo "And the following is my progress."
-    echo ""
-
-    echo "raft.go:"   ; echo ""; cat "raft.go"              ; echo -e "\n"
-    echo "raftapi.go:"; echo ""; cat "../raftapi/raftapi.go"; echo -e "\n"
-    echo "labrpc.go:" ; echo ""; cat "../labrpc/labrpc.go"  ; echo -e "\n"
-
+    echo "raft.go:"
+    cat "raft.go"
     echo -e "\n--- End of Files ---\n"
+
     echo "Am I on the right track? What could the next unit of work for me to implement be?"
     echo ""
 } > "$TEMP_FILE"
