@@ -379,6 +379,10 @@ type AppendEntriesArgs struct {
 type AppendEntriesReply struct {
 	Term 		int // Current term, for leader to update itself.
 	Success bool
+
+	// Fast backup: retry from previous term instead of previous entry.
+	ConflictIndex int
+	ConflictTerm 	int
 }
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs,
@@ -393,15 +397,48 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs,
 		return
 	}
 
-	// Reply false if prev log index out of rf.log bound.
+	// At this point the term of the request must be up-to-date.
+
+	// Reset next election target: we just got an RPC from a valid leader.
+	rf.resetElectionDeadline()
+
+	// Ensure to be follower and keep term updated
+	if args.Term > rf.Term || rf.role != 0 {
+		rf.Term = args.Term
+		rf.role = 0 // follower
+		rf.Vote = -1
+		rf.persist()
+	}
+
+	// Reply false if prev log index is higher than our rf.log length,
+	// so they can help us get back up from where we are.
 	if args.PrevLogIndex >= len(rf.log) {
 		reply.Success = false
 		reply.Term = rf.Term
+		reply.ConflictIndex = len(rf.log)
+		reply.ConflictTerm = -1 // Code for no conflict term, just length
 		return
 	}
 
-	// At this point we are accepting of the given request.
-	// We will align to the given log from the leader and reply true.
+	// Reply false if we have the entry but terms mismatch,
+	// so they can help us refresh the entire term.
+	if rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+		reply.Success = false
+		reply.Term = rf.Term
+		reply.ConflictTerm = rf.log[args.PrevLogIndex].Term
+
+		// Find the very first index of the ConflictTerm
+		idx := args.PrevLogIndex
+		for idx > 0 && rf.log[idx-1].Term == reply.ConflictTerm {
+			idx--
+		}
+		reply.ConflictIndex = idx
+		return
+	}
+
+	// At this point we are sure the given request has new valid entries for us
+	// and the leader is up-to-date with our state.
+	// We will proceed appending the new given log entrie from the leader.
 
 	// If existing entry conflicts with new one,
 	// immediately communicate failure to the leader.
@@ -443,15 +480,6 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs,
 
 	reply.Success = true
 
-	rf.persist()
-
-	// Reset next election target: we just heard from a valid leader.
-	rf.resetElectionDeadline()
-
-	// Ensure to be follower and keep term updated
-	rf.Term = args.Term
-	rf.role = 0 // follower
-	rf.Vote = -1
 }
 
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs,
@@ -529,8 +557,32 @@ func (rf *Raft) broadcastAppendEntries() {
 						rf.updateCommitIndex()
 					}
 				} else {
-					// Follower inconsistency: let's retry later with one more entry.
-					rf.nextIndex[server] = rf.nextIndex[server] - 1
+					// Follower inconsistency. Let's help them back-up.
+
+					if reply.ConflictTerm == -1 {
+						// Follower's log is shorter than PrevLogIndex.
+						// Let's skip it altogether.
+						rf.nextIndex[server] = reply.ConflictIndex
+					} else {
+						// Term mismatch. Let's skip the term.
+
+						lastIndexOfTerm := -1
+						for i = len(rf.log) - 1; i >= 0; i-- {
+							if rf.log[i].Term == reply.ConflictTerm {
+								lastIndexOfTerm = i
+								break
+							}
+						}
+
+						if lastIndexOfTerm != -1 {
+							rf.nextIndex[server] = lastIndexOfTerm + 1
+						} else {
+							// We don't have that term, perhaps we were offline during
+							// that term and it wasn't committed anyway. Let's skip the
+							// entire follower log history.
+							rf.nextIndex[server] = reply.ConflictIndex
+						}
+					}
 				}
 			}
 		}(i)
