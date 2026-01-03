@@ -2,7 +2,7 @@
 
 ## RESOURCES
 
-### [MIT 6.824](https://web.archive.org/web/20251122115811/https://pdos.csail.mit.edu/6.824/) by [RTM](https://wikipedia.org/wiki/Robert_Tappan_Morris)
+### [MIT 6.824](https://web.archive.org/web/20251122115811/https://pdos.csail.mit.edu/6.824/) ([lectures](https://www.youtube.com/playlist?list=PLrw6a1wE39_tb2fErI4-WkMbsvGQk9_UB)) by [RTM](https://wikipedia.org/wiki/Robert_Tappan_Morris)
 
 PROGRESS:
 
