@@ -376,6 +376,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		rf.Term = args.Term
 		rf.role = 0 // follower
 		rf.Vote = -1
+		rf.persist()
 	}
 
 	// Always return our current term to the candidate,
@@ -846,7 +847,7 @@ func (rf *Raft) broadcastAppendEntries() {
 						}
 
 						if lastIndexOfTerm != -1 {
-							rf.nextIndex[server] = lastIndexOfTerm + 1
+							rf.nextIndex[server] = rf.lastFrozenIndex + lastIndexOfTerm + 1
 						} else {
 							// We don't have that term, perhaps we were offline during
 							// that term and it wasn't committed anyway. Let's skip the
