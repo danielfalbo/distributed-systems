@@ -328,7 +328,11 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 // should call killed() to check whether it should stop.
 func (rf *Raft) Kill() {
 	atomic.StoreInt32(&rf.dead, 1)
-	// Your code here, if desired.
+
+	// Wake up the applier if it's waiting, so it can see the dead flag and exit.
+	rf.mu.Lock()
+	rf.applyCond.Broadcast()
+	rf.mu.Unlock()
 }
 
 func (rf *Raft) killed() bool {
@@ -712,7 +716,11 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs,
 	}
 
 	rf.mu.Unlock()
-	rf.applyCh <- msg
+
+	// Ensure we're alive before sending to 'applyCh'
+	if !rf.killed() {
+		rf.applyCh <- msg
+	}
 }
 
 // ============ Leader to Followers Entries Broadcasting ================
@@ -766,6 +774,7 @@ func (rf *Raft) broadcastAppendEntries() {
 					// Otherwise, we can update follower state.
 					rf.matchIndex[server] = args.LastIncludedIndex
 					rf.nextIndex[server] = args.LastIncludedIndex + 1
+					rf.updateCommitIndex()
 				}
 				return
 			}
@@ -922,6 +931,10 @@ func (rf *Raft) AttemptSelfElection() {
 	rf.role = 1 // candidate
 	rf.Vote = rf.me
 
+	rf.persist()
+
+	rf.persist()
+
 	me := rf.me
 	term := rf.Term
 	peers := rf.peers
@@ -1044,6 +1057,12 @@ func (rf *Raft) applier() {
 			rf.applyCond.Wait()
 		}
 
+		// If we woke up because we were killed, return immediately.
+		if rf.killed() {
+			rf.mu.Unlock()
+			return
+		}
+
 		start := rf.lastApplied + 1
 		end := rf.commitIndex
 
@@ -1062,6 +1081,11 @@ func (rf *Raft) applier() {
 		rf.mu.Unlock()
 
 		for i, entry := range toApply {
+			// Ensure we are alive before sending to applyCh.
+			if rf.killed() {
+				return
+			}
+
 			msg := raftapi.ApplyMsg{
 				CommandValid: 	true,
 				Command: 				entry.Command,
