@@ -11,8 +11,8 @@ import (
 
 )
 
-var useRaftStateMachine bool // to plug in another raft besided raft1
-
+// To plug in another raft besides ../../raft1
+var useRaftStateMachine bool
 
 type Op struct {
 	// Your definitions here.
